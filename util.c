@@ -5,19 +5,31 @@
 #include <stdlib.h>
 #include <unistd.h>
 
-/*
-NOTE: writing these to STDOUT is a disconnect from the example, but it's a bit
-annoying to have to pass that append_buffer around throughout all of this code.
+void writeCommand(struct TerminalCommand tc) {
+  write(STDOUT_FILENO, tc.string_representation, tc.length);
+}
 
-Really, we've got some String-ish `Command` type, and we want to write it's
-`String` representation into a `MutableBuffer`. Doing so has the desired side
-effects.
-*/
+void clearDisplayForStandardOut(void) { writeCommand(clearDisplay()); }
+void repositionCursorToTopLeft(void) { writeCommand(moveCursorToTopLeft()); }
+void hideCursorWhileWriting(void) { writeCommand(hideCursor()); }
+void displayCursorAfterWriting(void) { writeCommand(displayCursor()); }
 
-void clearDisplayForStandardOut(void) { write(STDOUT_FILENO, "\x1b[2J", 4); }
-void repositionCursorToTopLeft(void) { write(STDOUT_FILENO, "\x1b[H", 3); }
-void hideCursorWhileWriting(void) { write(STDOUT_FILENO, "\x1b[?25l", 6); }
-void displayCursorAfterWriting(void) { write(STDOUT_FILENO, "\x1b[?25h", 6); }
+struct TerminalCommand clearDisplay() {
+  struct TerminalCommand tc = {"\x1b[2J", 4};
+  return tc;
+}
+struct TerminalCommand moveCursorToTopLeft() {
+  struct TerminalCommand tc = {"\x1b[H", 3};
+  return tc;
+}
+struct TerminalCommand hideCursor() {
+  struct TerminalCommand tc = {"\x1b[?25l", 6};
+  return tc;
+}
+struct TerminalCommand displayCursor() {
+  struct TerminalCommand tc = {"\x1b[?25h", 6};
+  return tc;
+}
 
 void die(const char *message) {
   clearDisplayForStandardOut();

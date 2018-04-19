@@ -57,9 +57,15 @@ void enableRawMode(void) {
 
 #pragma mark -
 
-int main(void) {
+int main(int argc, char *argv[]) {
   enableRawMode();
   initEditor();
+
+  if (argc >= 2) {
+    openEditor(argv[1]);
+  }
+
+  editorSetStatusMessage("HELP: Ctrl-Q to quit");
 
   while (1) {
     editorRefreshScreen();

@@ -9,6 +9,7 @@
     "editor.h": "c",
     "errno.h": "c",
     "ioctl.h": "c",
-    "stdlib.h": "c"
+    "stdlib.h": "c",
+    "util.h": "c"
   }
 }
