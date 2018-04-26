@@ -45,7 +45,9 @@ struct EditorConfig {
 
 extern struct EditorConfig config;
 
+// Init the global state for the editor.
 void editorInit(void);
+// edit the file at the given path.
 void editorOpen(char *filename);
 
 // Read the next character from STDIN.
@@ -61,7 +63,7 @@ void editorProcessKeypress(void);
 void editorMoveCursor(int keypress);
 void editorDrawRows(struct append_buffer *ab);
 void editorScroll(void);
-void editorRefreshScreen();
+void editorRefreshScreen(void);
 int getCursorPosition(struct winsize *wsize);
 
 #endif

@@ -6,10 +6,10 @@ struct TerminalCommand {
   int length;
 };
 
-struct TerminalCommand clearDisplay();
-struct TerminalCommand moveCursorToTopLeft();
-struct TerminalCommand hideCursor();
-struct TerminalCommand displayCursor();
+struct TerminalCommand clearDisplay(void);
+struct TerminalCommand moveCursorToTopLeft(void);
+struct TerminalCommand hideCursor(void);
+struct TerminalCommand displayCursor(void);
 
 #pragma mark - Execute commands immediately via STDOUT
 

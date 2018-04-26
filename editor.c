@@ -83,7 +83,7 @@ void editorInsertRow(int at, char *s, size_t length) {
   memmove(&config.rows[at + 1], &config.rows[at],
           sizeof(EditorRow) * (config.row_count - at));
 
-  config.rows[at].size = length;
+  config.rows[at].size = (int) length;
   config.rows[at].chars = malloc(length + 1);
   memcpy(config.rows[at].chars, s, length);
   config.rows[at].chars[length] = '\0';
@@ -251,7 +251,6 @@ void editorOpen(char *filename) {
 }
 
 void editorSave() {
-  // TODO: prompt user for a filename
   if (config.filename == NULL) {
     config.filename = editorPrompt("Save as: %s");
     if (config.filename == NULL) {
@@ -294,7 +293,7 @@ int editorReadKey(void) {
   int nread;
   char c;
 
-  while ((nread = read(STDIN_FILENO, &c, 1)) != 1) {
+  while ((nread = (int) read(STDIN_FILENO, &c, 1)) != 1) {
     if (nread == -1 && errno != EAGAIN) {
       die("could not read from STDIN.");
     }
@@ -437,7 +436,7 @@ void editorDrawStatusBar(struct append_buffer *ab) {
 
 void editorDrawMessageBar(struct append_buffer *ab) {
   append_buffer_append(ab, "\x1b[K", 3);
-  int len = strlen(config.status_message);
+  int len = (int) strlen(config.status_message);
   if (len > config.wsize.ws_col) {
     len = config.wsize.ws_col;
   }
@@ -498,7 +497,7 @@ void editorRefreshScreen(void) {
   char buf[32];
   snprintf(buf, sizeof(buf), "\x1b[%d;%dH", (config.cy - config.row_offset) + 1,
            (config.rx - config.col_offset) + 1);
-  append_buffer_append(&ab, buf, strlen(buf));
+  append_buffer_append(&ab, buf, (int) strlen(buf));
 
   append_terminal_command_to_buffer(&ab, displayCursor());
 
