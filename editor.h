@@ -29,8 +29,11 @@ struct EditorConfig {
   int row_offset;
   // current col offset
   int col_offset;
-  // currently selected row
+  // the lines in the current file
+  // TODO: rename
   EditorRow *current_row;
+  // indicates whether the file has been modified since opening or saving
+  int dirty;
   // file currently being edited.
   char *filename;
 
@@ -51,6 +54,7 @@ int editorReadKey(void);
 int editorGetWindowSize(struct winsize *wsize);
 
 void editorSetStatusMessage(const char *fmt, ...);
+char *editorPrompt(char *prompt);
 
 // Read the next character from STDIN and process it immediately.
 void editorProcessKeypress(void);

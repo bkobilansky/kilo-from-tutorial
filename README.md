@@ -10,3 +10,11 @@ Build your own text editor, following along from http://viewsourcecode.org/snapt
 ## Static HTML
 
 I'll largely be hacking though this on airplanes, so offline access is useful. The tutorial ships static versions [in releases](https://github.com/snaptoken/kilo-tutorial/releases); a version is included in this repository.
+
+## Issues and Further Work
+
+- Public API documentation
+- Code organization
+  - file updating
+  - editor/terminal mechanics
+- Clarification on terminal commands

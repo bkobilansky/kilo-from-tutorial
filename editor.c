@@ -2,7 +2,9 @@
 #include "editor-key.h"
 #include "util.h"
 
+#include <ctype.h>
 #include <errno.h>
+#include <fcntl.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <string.h>
@@ -10,6 +12,7 @@
 
 #define KILO_VERSION "0.0.1"
 #define KILO_TAB_STOP 8
+#define KILO_QUIT_TIMES 3
 #define CTRL_KEY(k) ((k)&0x1f)
 
 struct EditorConfig config;
@@ -22,6 +25,7 @@ void initEditor(void) {
   config.col_offset = 0;
   config.row_count = 0;
   config.current_row = NULL;
+  config.dirty = 0;
   config.filename = NULL;
 
   config.status_message[0] = '\0';
@@ -69,11 +73,16 @@ void editorUpdateRow(EditorRow *row) {
   row->render_size = idx;
 }
 
-void editorAppendRow(char *s, size_t length) {
+void editorInsertRow(int at, char *s, size_t length) {
+  if (at < 0 || at > config.row_count) {
+    return;
+  }
+
   config.current_row =
       realloc(config.current_row, sizeof(EditorRow) * (config.row_count + 1));
+  memmove(&config.current_row[at + 1], &config.current_row[at],
+          sizeof(EditorRow) * (config.row_count - at));
 
-  int at = config.row_count;
   config.current_row[at].size = length;
   config.current_row[at].chars = malloc(length + 1);
   memcpy(config.current_row[at].chars, s, length);
@@ -84,7 +93,136 @@ void editorAppendRow(char *s, size_t length) {
 
   editorUpdateRow(&config.current_row[at]);
 
+  config.dirty = 1;
   config.row_count++;
+}
+
+void editorFreeRow(EditorRow *row) {
+  free(row->render);
+  free(row->chars);
+}
+
+void editorDeleteRow(int at) {
+  if (at < 0 || at >= config.row_count) {
+    return;
+  }
+  editorFreeRow(&config.current_row[at]);
+  memmove(&config.current_row[at], &config.current_row[at + 1],
+          sizeof(EditorRow) * (config.row_count - at - 1));
+  config.row_count--;
+  config.dirty = 1;
+}
+
+void editorRowInsertChar(EditorRow *row, int at, int c) {
+  if (at < 0 || at > row->size) {
+    // TODO: it seems like a programmer error to pass an invalid row index
+    at = row->size;
+  }
+
+  // realloc, (2 is for the new byte and null byte)
+  row->chars = realloc(row->chars, row->size + 2);
+  // dst, src, length; copy {size+1} bytes from {at} to {at + 1}
+  memmove(&row->chars[at + 1], &row->chars[at], row->size - at + 1);
+  row->size++;
+  row->chars[at] = c;
+  editorUpdateRow(row);
+  config.dirty = 1;
+}
+
+void editorRowAppendString(EditorRow *row, char *s, size_t length) {
+  row->chars = realloc(row->chars, row->size + length + 1);
+  memcpy(&row->chars[row->size], s, length);
+  row->size += length;
+  row->chars[row->size] = '\0';
+  editorUpdateRow(row);
+  config.dirty = 0;
+}
+
+void editorRowDeleteChar(EditorRow *row, int at) {
+  if (at < 0 || at >= row->size) {
+    return;
+  }
+
+  memmove(&row->chars[at], &row->chars[at + 1], row->size - at);
+  row->size--;
+  editorUpdateRow(row);
+  config.dirty = 1;
+}
+
+void editorInsertChar(int c) {
+  // insert a particular character at the current { x, y }
+  if (config.cy == config.row_count) {
+    editorInsertRow(config.row_count, "", 0);
+  }
+  editorRowInsertChar(&config.current_row[config.cy], config.cx, c);
+  config.cx++;
+}
+
+void editorInsertNewline() {
+  if (config.cx == 0) {
+    editorInsertRow(config.cy, "", 0);
+  } else {
+    EditorRow *row = &config.current_row[config.cy];
+    // insert a new row, using the bits to the right of the cursor
+    editorInsertRow(config.cy + 1, &row->chars[config.cx],
+                    row->size - config.cx);
+    row = &config.current_row[config.cy];
+    row->size = config.cx;
+    row->chars[row->size] = '\0';
+    editorUpdateRow(row);
+  }
+  // update the cursor
+  config.cy++;
+  config.cx = 0;
+}
+
+void editorDeleteChar(void) {
+  if (config.cy == config.row_count) {
+    return;
+  }
+  if (config.cx == 0 && config.cy == 0) {
+    // delete doesn't do anything at {0,0}
+    return;
+  }
+  EditorRow *row = &config.current_row[config.cy];
+  if (config.cx > 0) {
+    editorRowDeleteChar(row, config.cx - 1);
+    config.cx--;
+  } else {
+    // set the cursor position
+    config.cx = config.current_row[config.cy - 1].size;
+    // append the contents of the current row to the previous row
+    editorRowAppendString(&config.current_row[config.cy - 1], row->chars,
+                          row->size);
+    // remove the current row
+    editorDeleteRow(config.cy);
+    config.cy--;
+  }
+}
+
+char *editorRowsToString(int *buffer_length) {
+  int total_length = 0;
+
+  // calculate length of current buffer
+  for (int j = 0; j < config.row_count; j++) {
+    // include a byte for a newline character at the end of each line
+    total_length += config.current_row[j].size + 1;
+  }
+
+  *buffer_length = total_length;
+
+  // allocate a new buffer and copy the contents into it
+  char *buf = malloc(total_length);
+  char *p = buf;
+  for (int j = 0; j < config.row_count; j++) {
+    memcpy(p, config.current_row[j].chars, config.current_row[j].size);
+    p += config.current_row[j].size;
+    // append the newline we allocated size for
+    *p = '\n';
+    p++;
+  }
+
+  return buf;
 }
 
 void openEditor(char *filename) {
@@ -105,11 +243,46 @@ void openEditor(char *filename) {
            (line[line_length - 1] == '\n' || line[line_length - 1] == '\r')) {
       line_length--;
     }
-    editorAppendRow(line, line_length);
+    editorInsertRow(config.row_count, line, line_length);
   }
 
   free(line);
   fclose(fp);
+  config.dirty = 0;
+}
+
+void editorSave() {
+  // TODO: prompt user for a filename
+  if (config.filename == NULL) {
+    config.filename = editorPrompt("Save as: %s");
+    if (config.filename == NULL) {
+      editorSetStatusMessage("Save aborted.");
+      return;
+    }
+  }
+
+  int length;
+  char *buffer = editorRowsToString(&length);
+
+  //  0644 -> owner has read/write, others can read
+  int file_descriptor = open(config.filename, O_RDWR | O_CREAT, 0644);
+
+  if (file_descriptor != -1) {
+    if (ftruncate(file_descriptor, length) != -1) {
+      if (write(file_descriptor, buffer, length) == length) {
+        close(file_descriptor);
+        free(buffer);
+        editorSetStatusMessage("Saved %d bytes to %s successfully.", length,
+                               config.filename);
+        config.dirty = 0;
+        return;
+      }
+    }
+    close(file_descriptor);
+  }
+
+  free(buffer);
+  editorSetStatusMessage("Could not save file! I/O error: %s", strerror(errno));
 }
 
 /*
@@ -239,9 +412,9 @@ void editorDrawStatusBar(struct append_buffer *ab) {
   append_buffer_append(ab, "\x1b[7m", 4);
 
   char status[80], rstatus[80];
-  int len = snprintf(status, sizeof(status), "%.20s - %d lines",
+  int len = snprintf(status, sizeof(status), "%.20s - %d lines %s",
                      config.filename ? config.filename : "[No Name]",
-                     config.row_count);
+                     config.row_count, config.dirty ? "(modified)" : "");
   int rlen = snprintf(rstatus, sizeof(rstatus), "%d/%d", config.cy + 1,
                       config.row_count);
 
@@ -353,22 +526,48 @@ int editorGetWindowSize(struct winsize *wsize) {
 }
 
 void editorProcessKeypress(void) {
+  static int quit_times = KILO_QUIT_TIMES;
   int c = editorReadKey();
 
   switch (c) {
+  case '\r':
+    editorInsertNewline();
+    break;
+
   case CTRL_KEY('q'):
+    if (config.dirty && quit_times > 0) {
+      editorSetStatusMessage("WARNING! File has unsaved changes. Press Ctrl-Q "
+                             "%d more time%s to quit.",
+                             quit_times, quit_times == 1 ? "" : "s");
+      quit_times--;
+      return;
+    }
     clearDisplayForStandardOut();
     repositionCursorToTopLeft();
     exit(0);
     break;
 
+  case CTRL_KEY('s'):
+    editorSave();
+    break;
+
   case HOME_KEY:
     config.cx = 0;
     break;
+
   case END_KEY:
     if (config.cy < config.row_count) {
       config.cx = config.current_row[config.cy].size;
     }
+    break;
+
+  case BACKSPACE:
+  case CTRL_KEY('h'):
+  case DEL_KEY:
+    if (c == DEL_KEY) {
+      editorMoveCursor(ARROW_RIGHT);
+    }
+    editorDeleteChar();
     break;
 
   case PAGE_UP:
@@ -395,7 +594,17 @@ void editorProcessKeypress(void) {
   case ARROW_RIGHT:
     editorMoveCursor(c);
     break;
+
+  case CTRL_KEY('l'):
+  case '\x1b':
+    break;
+
+  default:
+    editorInsertChar(c);
+    break;
   }
+
+  quit_times = KILO_QUIT_TIMES;
 }
 
 void editorMoveCursor(int keypress) {
@@ -467,4 +676,42 @@ int getCursorPosition(struct winsize *wsize) {
   }
 
   return 0;
+}
+
+char *editorPrompt(char *prompt) {
+  size_t buffer_size = 128;
+  char *buffer = malloc(buffer_size);
+
+  size_t buffer_length = 0;
+  buffer[0] = '\0';
+
+  while (1) {
+    editorSetStatusMessage(prompt, buffer);
+    editorRefreshScreen();
+
+    int c = editorReadKey();
+    if (c == DEL_KEY || c == CTRL_KEY('h') || c == BACKSPACE) {
+      if (buffer_length != 0) {
+        buffer[--buffer_length] = '\0';
+      }
+    } else if (c == '\x1b') {
+      editorSetStatusMessage("");
+      free(buffer);
+      return NULL;
+    } else if (c == '\r') {
+      if (buffer_length != 0) {
+        editorSetStatusMessage("");
+        return buffer;
+      }
+    } else if (!iscntrl(c) && c < 128) {
+      if (buffer_length == buffer_size - 1) {
+        // if we hit the end of the buffer, double the size
+        buffer_size *= 2;
+        buffer = realloc(buffer, buffer_size);
+      }
+      // append 'c' to the end of this buffer
+      buffer[buffer_length++] = c;
+      buffer[buffer_length] = '\0';
+    }
+  }
 }

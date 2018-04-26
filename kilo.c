@@ -65,7 +65,7 @@ int main(int argc, char *argv[]) {
     openEditor(argv[1]);
   }
 
-  editorSetStatusMessage("HELP: Ctrl-Q to quit");
+  editorSetStatusMessage("HELP: Ctrl-S = save | Ctrl-Q = quit");
 
   while (1) {
     editorRefreshScreen();
