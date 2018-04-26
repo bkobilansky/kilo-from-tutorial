@@ -24,7 +24,7 @@ void initEditor(void) {
   config.row_offset = 0;
   config.col_offset = 0;
   config.row_count = 0;
-  config.current_row = NULL;
+  config.rows = NULL;
   config.dirty = 0;
   config.filename = NULL;
 
@@ -78,20 +78,20 @@ void editorInsertRow(int at, char *s, size_t length) {
     return;
   }
 
-  config.current_row =
-      realloc(config.current_row, sizeof(EditorRow) * (config.row_count + 1));
-  memmove(&config.current_row[at + 1], &config.current_row[at],
+  config.rows =
+      realloc(config.rows, sizeof(EditorRow) * (config.row_count + 1));
+  memmove(&config.rows[at + 1], &config.rows[at],
           sizeof(EditorRow) * (config.row_count - at));
 
-  config.current_row[at].size = length;
-  config.current_row[at].chars = malloc(length + 1);
-  memcpy(config.current_row[at].chars, s, length);
-  config.current_row[at].chars[length] = '\0';
+  config.rows[at].size = length;
+  config.rows[at].chars = malloc(length + 1);
+  memcpy(config.rows[at].chars, s, length);
+  config.rows[at].chars[length] = '\0';
 
-  config.current_row[at].render_size = 0;
-  config.current_row[at].render = NULL;
+  config.rows[at].render_size = 0;
+  config.rows[at].render = NULL;
 
-  editorUpdateRow(&config.current_row[at]);
+  editorUpdateRow(&config.rows[at]);
 
   config.dirty = 1;
   config.row_count++;
@@ -106,8 +106,8 @@ void editorDeleteRow(int at) {
   if (at < 0 || at >= config.row_count) {
     return;
   }
-  editorFreeRow(&config.current_row[at]);
-  memmove(&config.current_row[at], &config.current_row[at + 1],
+  editorFreeRow(&config.rows[at]);
+  memmove(&config.rows[at], &config.rows[at + 1],
           sizeof(EditorRow) * (config.row_count - at - 1));
   config.row_count--;
   config.dirty = 1;
@@ -154,7 +154,7 @@ void editorInsertChar(int c) {
   if (config.cy == config.row_count) {
     editorInsertRow(config.row_count, "", 0);
   }
-  editorRowInsertChar(&config.current_row[config.cy], config.cx, c);
+  editorRowInsertChar(&config.rows[config.cy], config.cx, c);
   config.cx++;
 }
 
@@ -162,11 +162,11 @@ void editorInsertNewline() {
   if (config.cx == 0) {
     editorInsertRow(config.cy, "", 0);
   } else {
-    EditorRow *row = &config.current_row[config.cy];
+    EditorRow *row = &config.rows[config.cy];
     // insert a new row, using the bits to the right of the cursor
     editorInsertRow(config.cy + 1, &row->chars[config.cx],
                     row->size - config.cx);
-    row = &config.current_row[config.cy];
+    row = &config.rows[config.cy];
     row->size = config.cx;
     row->chars[row->size] = '\0';
     editorUpdateRow(row);
@@ -184,16 +184,15 @@ void editorDeleteChar(void) {
     // delete doesn't do anything at {0,0}
     return;
   }
-  EditorRow *row = &config.current_row[config.cy];
+  EditorRow *row = &config.rows[config.cy];
   if (config.cx > 0) {
     editorRowDeleteChar(row, config.cx - 1);
     config.cx--;
   } else {
     // set the cursor position
-    config.cx = config.current_row[config.cy - 1].size;
+    config.cx = config.rows[config.cy - 1].size;
     // append the contents of the current row to the previous row
-    editorRowAppendString(&config.current_row[config.cy - 1], row->chars,
-                          row->size);
+    editorRowAppendString(&config.rows[config.cy - 1], row->chars, row->size);
     // remove the current row
     editorDeleteRow(config.cy);
     config.cy--;
@@ -206,7 +205,7 @@ char *editorRowsToString(int *buffer_length) {
   // calculate length of current buffer
   for (int j = 0; j < config.row_count; j++) {
     // include a byte for a newline character at the end of each line
-    total_length += config.current_row[j].size + 1;
+    total_length += config.rows[j].size + 1;
   }
 
   *buffer_length = total_length;
@@ -215,8 +214,8 @@ char *editorRowsToString(int *buffer_length) {
   char *buf = malloc(total_length);
   char *p = buf;
   for (int j = 0; j < config.row_count; j++) {
-    memcpy(p, config.current_row[j].chars, config.current_row[j].size);
-    p += config.current_row[j].size;
+    memcpy(p, config.rows[j].chars, config.rows[j].size);
+    p += config.rows[j].size;
     // append the newline we allocated size for
     *p = '\n';
     p++;
@@ -390,15 +389,15 @@ void editorDrawRows(struct append_buffer *ab) {
         append_buffer_append(ab, "~", 1);
       }
     } else {
-      int length = config.current_row[filerow].render_size - config.col_offset;
+      int length = config.rows[filerow].render_size - config.col_offset;
       if (length < 0) {
         length = 0;
       }
       if (length > config.wsize.ws_col) {
         length = config.wsize.ws_col;
       }
-      append_buffer_append(
-          ab, &config.current_row[filerow].render[config.col_offset], length);
+      append_buffer_append(ab, &config.rows[filerow].render[config.col_offset],
+                           length);
     }
 
     // 'ERASE IN LINE': clear each line as we redraw it
@@ -462,7 +461,7 @@ int editorRowCxToRx(EditorRow *row, int cx) {
 void editorScroll(void) {
   config.rx = 0;
   if (config.cy < config.row_count) {
-    config.rx = editorRowCxToRx(&config.current_row[config.cy], config.cx);
+    config.rx = editorRowCxToRx(&config.rows[config.cy], config.cx);
   }
 
   if (config.cy < config.row_offset) {
@@ -557,7 +556,7 @@ void editorProcessKeypress(void) {
 
   case END_KEY:
     if (config.cy < config.row_count) {
-      config.cx = config.current_row[config.cy].size;
+      config.cx = config.rows[config.cy].size;
     }
     break;
 
@@ -609,14 +608,14 @@ void editorProcessKeypress(void) {
 
 void editorMoveCursor(int keypress) {
   EditorRow *row =
-      (config.cy >= config.row_count) ? NULL : &config.current_row[config.cy];
+      (config.cy >= config.row_count) ? NULL : &config.rows[config.cy];
   switch (keypress) {
   case ARROW_LEFT:
     if (config.cx != 0) {
       config.cx--;
     } else if (config.cy > 0) {
       config.cy--;
-      config.cx = config.current_row[config.cy].size;
+      config.cx = config.rows[config.cy].size;
     }
     break;
   case ARROW_RIGHT:
@@ -639,7 +638,7 @@ void editorMoveCursor(int keypress) {
     break;
   }
 
-  row = (config.cy > config.row_count) ? NULL : &config.current_row[config.cy];
+  row = (config.cy > config.row_count) ? NULL : &config.rows[config.cy];
   int row_length = row ? row->size : 0;
   if (config.cx > row_length) {
     config.cx = row_length;

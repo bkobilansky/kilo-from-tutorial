@@ -61,12 +61,15 @@ int main(int argc, char *argv[]) {
   enableRawMode();
   initEditor();
 
+  // if we were passed an arg, assume it's a filename to open
   if (argc >= 2) {
     openEditor(argv[1]);
   }
 
+  // the default status message indicates control keys
   editorSetStatusMessage("HELP: Ctrl-S = save | Ctrl-Q = quit");
 
+  // main loop
   while (1) {
     editorRefreshScreen();
     editorProcessKeypress();

@@ -7,11 +7,11 @@
 #include <time.h>
 
 typedef struct EditorRow {
-  // the raw size and text
+  // the raw size and text (\t is always 1 char)
   int size;
   char *chars;
 
-  // the actual rendered string and its size
+  // the actual rendered string and its size (\t is an impl-specific size)
   int render_size;
   char *render;
 } EditorRow;
@@ -30,14 +30,14 @@ struct EditorConfig {
   // current col offset
   int col_offset;
   // the lines in the current file
-  // TODO: rename
-  EditorRow *current_row;
+  EditorRow *rows;
   // indicates whether the file has been modified since opening or saving
   int dirty;
   // file currently being edited.
   char *filename;
-
+  // an optional helpful message to the user
   char status_message[80];
+  // the time the status message was displayed
   time_t status_message_time;
   // the terminal settings acquired on program start
   struct termios original_termios;
