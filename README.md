@@ -18,3 +18,5 @@ I'll largely be hacking though this on airplanes, so offline access is useful. T
   - file updating
   - editor/terminal mechanics
 - Clarification on terminal commands
+- HOME/END keys do not work as expected
+- Attaching to running process via Xcode does not work
