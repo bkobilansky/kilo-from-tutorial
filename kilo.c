@@ -59,11 +59,11 @@ void enableRawMode(void) {
 
 int main(int argc, char *argv[]) {
   enableRawMode();
-  initEditor();
+  editorInit();
 
   // if we were passed an arg, assume it's a filename to open
   if (argc >= 2) {
-    openEditor(argv[1]);
+    editorOpen(argv[1]);
   }
 
   // the default status message indicates control keys

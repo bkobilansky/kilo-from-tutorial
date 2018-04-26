@@ -45,8 +45,8 @@ struct EditorConfig {
 
 extern struct EditorConfig config;
 
-void initEditor(void);
-void openEditor(char *filename);
+void editorInit(void);
+void editorOpen(char *filename);
 
 // Read the next character from STDIN.
 int editorReadKey(void);

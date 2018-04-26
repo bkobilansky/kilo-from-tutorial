@@ -17,7 +17,7 @@
 
 struct EditorConfig config;
 
-void initEditor(void) {
+void editorInit(void) {
   config.cx = 0;
   config.cy = 0;
   config.rx = 0;
@@ -224,7 +224,7 @@ char *editorRowsToString(int *buffer_length) {
   return buf;
 }
 
-void openEditor(char *filename) {
+void editorOpen(char *filename) {
   free(config.filename);
   config.filename = strdup(filename);
 
